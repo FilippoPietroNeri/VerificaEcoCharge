@@ -1,0 +1,26 @@
+{% include 'partials/navbar.html' %}
+<div class="container mt-4">
+  <h3>Colonnine disponibili</h3>
+  <div id="map" style="height:500px;"></div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/js/api.js"></script>
+<script>
+(async () => {
+  const stations = await getStations();
+  const map = L.map('map').setView([45.4642, 9.19], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+  stations.forEach(st => {
+    const marker = L.marker([st.latitude, st.longitude], {
+      icon: L.icon({
+        iconUrl: st.occupied ? 'https://maps.google.com/mapfiles/ms/icons/red-dot.png' : 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+        iconSize: [32, 32]
+      })
+    }).addTo(map);
+    marker.bindPopup(`<b>${st.address}</b><br>Potenza: ${st.power_kw}kW<br>NIL: ${st.nil}`);
+  });
+})();
+</script>
