@@ -1,7 +1,7 @@
 {% include 'partials/navbar.html' %}
 <div class="container mt-4">
-  <h3>Gestione Colonnine</h3>
-  <table class="table table-striped mt-3" id="stationsTable">
+  <h4>Gestione Colonnine</h4>
+  <table class="table mt-3" id="stationsTable">
     <thead><tr><th>ID</th><th>Indirizzo</th><th>Potenza</th><th>Stato</th></tr></thead>
     <tbody></tbody>
   </table>
@@ -10,10 +10,10 @@
 <script src="/static/js/api.js"></script>
 <script>
 (async () => {
-  const stations = await getStations();
-  const tbody = document.querySelector("#stationsTable tbody");
-  stations.forEach(s => {
-    tbody.innerHTML += `<tr><td>${s.id}</td><td>${s.address}</td><td>${s.power_kw}kW</td><td>${s.status}</td></tr>`;
+  const data = await API.stations.getAll();
+  const body = document.querySelector('#stationsTable tbody');
+  data.forEach(s => {
+    body.innerHTML += `<tr><td>${s.id}</td><td>${s.address}</td><td>${s.power_kw}</td><td>${s.status}</td></tr>`;
   });
 })();
 </script>

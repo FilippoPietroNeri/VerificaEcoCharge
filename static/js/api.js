@@ -1,9 +1,8 @@
 const API_URL = "https://verbose-cod-5j74gxwp7r63wj4-5001.app.github.dev/api";
 
-// Recupera token da sessione Flask (iniettato da backend)
-const TOKEN = sessionStorage.getItem("token") || null;
+const TOKEN = document.querySelector('meta[name="api-token"]')?.content || null;
 
-// Helper per chiamate API
+// Helper generale per chiamate API
 async function apiFetch(endpoint, method = "GET", body = null) {
   const headers = {
     "Content-Type": "application/json",
@@ -18,14 +17,29 @@ async function apiFetch(endpoint, method = "GET", body = null) {
   return data;
 }
 
-// Funzioni di alto livello
-async function getStations() { return apiFetch("/stations"); }
-async function getStation(id) { return apiFetch(`/stations/${id}`); }
-async function bookStation(stationId, vehicleId, duration = 60) {
-  return apiFetch("/book", "POST", { station_id: stationId, vehicle_id: vehicleId, duration });
-}
-async function getUsers() { return apiFetch("/users"); }
-async function createUser(user) { return apiFetch("/users", "POST", user); }
-async function updateUser(id, user) { return apiFetch(`/users/${id}`, "PUT", user); }
-async function deleteUser(id) { return apiFetch(`/users/${id}`, "DELETE"); }
-async function getStats(nil, days = 30) { return apiFetch(`/stats?neighborhood=${nil}&days=${days}`); }
+// API specifiche
+const API = {
+  stations: {
+    getAll: () => apiFetch("/stations"),
+    get: (id) => apiFetch(`/stations/${id}`),
+    create: (data) => apiFetch("/stations", "POST", data),
+    update: (id, data) => apiFetch(`/stations/${id}`, "PUT", data),
+    delete: (id) => apiFetch(`/stations/${id}`, "DELETE")
+  },
+  vehicles: {
+    getAll: () => apiFetch("/vehicles"),
+  },
+  users: {
+    getAll: () => apiFetch("/users"),
+    create: (data) => apiFetch("/users", "POST", data),
+    update: (id, data) => apiFetch(`/users/${id}`, "PUT", data),
+    delete: (id) => apiFetch(`/users/${id}`, "DELETE")
+  },
+  stats: {
+    get: (nil, days = 30) => apiFetch(`/stats?neighborhood=${nil}&days=${days}`)
+  },
+  booking: {
+    create: (station_id, vehicle_id, duration = 60) =>
+      apiFetch("/book", "POST", { station_id, vehicle_id, duration })
+  }
+};

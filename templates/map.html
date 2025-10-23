@@ -1,26 +1,316 @@
-{% include 'partials/navbar.html' %}
-<div class="container mt-4">
-  <h3>Colonnine disponibili</h3>
-  <div id="map" style="height:500px;"></div>
-</div>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="/static/js/api.js"></script>
-<script>
-(async () => {
-  const stations = await getStations();
-  const map = L.map('map').setView([45.4642, 9.19], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-  stations.forEach(st => {
-    const marker = L.marker([st.latitude, st.longitude], {
-      icon: L.icon({
-        iconUrl: st.occupied ? 'https://maps.google.com/mapfiles/ms/icons/red-dot.png' : 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
-        iconSize: [32, 32]
-      })
-    }).addTo(map);
-    marker.bindPopup(`<b>${st.address}</b><br>Potenza: ${st.power_kw}kW<br>NIL: ${st.nil}`);
-  });
-})();
-</script>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="api-token" content="{{ session.get('token', '') }}">
+    <title>EcoCharge - Mappa Colonnine</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-header h4 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 1.75rem;
+        }
+        
+        .map-container {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 2rem;
+        }
+        
+        #map {
+            height: 600px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-content {
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1.5rem;
+        }
+        
+        .modal-title {
+            font-weight: 700;
+        }
+        
+        .btn-close {
+            filter: brightness(0) invert(1);
+        }
+        
+        .modal-body {
+            padding: 2rem;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-select, .form-control {
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-select:focus, .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
+        }
+        
+        .modal-footer {
+            border: none;
+            padding: 1.5rem 2rem;
+            background-color: #f8f9fa;
+        }
+        
+        .btn {
+            border-radius: 10px;
+            padding: 0.625rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            border: none;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        .leaflet-popup-content {
+            margin: 1rem;
+            font-size: 0.95rem;
+        }
+        
+        .leaflet-popup-content b {
+            color: #667eea;
+            font-size: 1.1rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .popup-info {
+            margin: 0.25rem 0;
+            color: #555;
+        }
+        
+        .station-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        
+        .status-available {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-occupied {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        @media (max-width: 768px) {
+            #map {
+                height: 400px;
+            }
+            
+            .page-header {
+                padding: 1.5rem 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include 'partials/navbar.html' %}
+    
+    <div class="page-header">
+        <div class="container">
+            <h4>⚡ Mappa Colonnine di Ricarica</h4>
+            <p class="mb-0 mt-2">Trova e prenota la colonnina più vicina a te</p>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+    
+    <!-- Modale prenotazione -->
+    <div class="modal fade" id="bookingModal" tabindex="-1" aria-labelledby="bookingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bookingModalLabel">🔌 Prenota Colonnina</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="bookingForm">
+                        <input type="hidden" id="stationId">
+                        <div class="mb-3">
+                            <label for="vehicleSelect" class="form-label">🚗 Seleziona Veicolo</label>
+                            <select class="form-select" id="vehicleSelect" required>
+                                <option value="">Scegli un veicolo...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="duration" class="form-label">⏱️ Durata (minuti)</label>
+                            <input type="number" id="duration" class="form-control" value="60" min="15" max="300" step="15" required>
+                            <small class="text-muted">Da 15 a 300 minuti</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="button" class="btn btn-primary" id="confirmBooking">Conferma Prenotazione</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script>
+    (async () => {
+        try {
+            // Carichiamo colonnine e veicoli utente
+            const [stations, vehicles] = await Promise.all([
+                API.stations.getAll(),
+                API.vehicles.getAll()
+            ]);
+            
+            // Setup mappa
+            const map = L.map('map').setView([45.46, 9.19], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Inseriamo le colonnine sulla mappa
+            stations.forEach(station => {
+                const isOccupied = station.occupied;
+                const color = isOccupied ? 'red' : 'green';
+                
+                const marker = L.marker([station.latitude, station.longitude], {
+                    icon: L.icon({
+                        iconUrl: `https://maps.google.com/mapfiles/ms/icons/${color}-dot.png`
+                    })
+                }).addTo(map);
+                
+                const statusClass = isOccupied ? 'status-occupied' : 'status-available';
+                const statusText = isOccupied ? 'Occupata' : 'Disponibile';
+                
+                const buttonHtml = isOccupied
+                    ? `<button class='btn btn-sm btn-secondary mt-2' disabled>Occupata</button>`
+                    : `<button class='btn btn-sm btn-success mt-2' onclick='openBooking(${station.id})'>Prenota Ora</button>`;
+                
+                const popupContent = `
+                    <b>${station.address}</b>
+                    <div class="popup-info">⚡ Potenza: ${station.power_kw} kW</div>
+                    <div class="popup-info">📍 NIL: ${station.nil}</div>
+                    <div class="station-status ${statusClass}">${statusText}</div>
+                    ${buttonHtml}
+                `;
+                
+                marker.bindPopup(popupContent);
+            });
+            
+            // Funzione globale per aprire il modale di prenotazione
+            window.openBooking = (stationId) => {
+                document.getElementById('stationId').value = stationId;
+                const select = document.getElementById('vehicleSelect');
+                select.innerHTML = '<option value="">Scegli un veicolo...</option>';
+                
+                vehicles.forEach(vehicle => {
+                    const option = document.createElement('option');
+                    option.value = vehicle.id;
+                    option.textContent = `${vehicle.license_plate} - ${vehicle.model}`;
+                    select.appendChild(option);
+                });
+                
+                const modal = new bootstrap.Modal(document.getElementById('bookingModal'));
+                modal.show();
+            };
+            
+            // Conferma prenotazione
+            document.getElementById('confirmBooking').addEventListener('click', async () => {
+                const stationId = document.getElementById('stationId').value;
+                const vehicleId = document.getElementById('vehicleSelect').value;
+                const duration = document.getElementById('duration').value;
+                
+                if (!vehicleId) {
+                    alert('⚠️ Seleziona un veicolo per continuare');
+                    return;
+                }
+                
+                try {
+                    const confirmBtn = document.getElementById('confirmBooking');
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = 'Prenotazione in corso...';
+                    
+                    const booking = await API.booking.create(stationId, vehicleId, duration);
+                    
+                    alert(`✅ Prenotazione confermata!\n\n📅 Inizio: ${booking.start_time}\n⏰ Fine: ${booking.end_time}`);
+                    location.reload();
+                } catch (error) {
+                    console.error('Errore prenotazione:', error);
+                    alert("❌ Errore durante la prenotazione: " + error.message);
+                    
+                    const confirmBtn = document.getElementById('confirmBooking');
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Conferma Prenotazione';
+                }
+            });
+            
+        } catch (error) {
+            console.error('Errore caricamento dati:', error);
+            alert('❌ Errore nel caricamento dei dati. Ricarica la pagina.');
+        }
+    })();
+    </script>
+</body>
+</html>

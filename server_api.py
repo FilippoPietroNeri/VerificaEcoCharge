@@ -41,10 +41,10 @@ def require_session(token):
     conn = get_db()
     cur = conn.cursor(dictionary=True)
     cur.execute("""
-        SELECT s.*, u.name, u.surname, u.email, u.role
+        SELECT s.*, u.name, u.surname, u.email
         FROM UserSession s
         JOIN User u ON s.user_id = u.id
-        WHERE s.token=%s AND s.expiration > NOW()
+        WHERE s.token=%s AND s.expires_at > NOW()
     """, (token,))
     session = cur.fetchone()
     cur.close()
@@ -207,6 +207,20 @@ def api_delete_station(station_id):
     conn.commit(); cur.close(); conn.close()
     return jsonify({'success': True})
 
+@app.route('/api/vehicles', methods=['GET'])
+def api_get_user_vehicles():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    s = require_session(token)
+    if not s:
+        return jsonify({'error': 'Non autorizzato'}), 403
+
+    conn = get_db(); cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, model, license_plate FROM Vehicle WHERE user_id=%s", (s['user_id'],))
+    vehicles = cur.fetchall()
+    cur.close(); conn.close()
+    return jsonify(vehicles)
+
+
 
 # -------------------------
 # UTENTI (CRUD)
@@ -286,7 +300,7 @@ def api_delete_user(user_id):
 def api_book_station():
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
     s = require_session(token)
-    if not s or s['role'] != 'user':
+    if not s:
         return jsonify({'error': 'Non autorizzato'}), 403
 
     d = request.get_json()

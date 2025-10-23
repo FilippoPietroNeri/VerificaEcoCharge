@@ -1,0 +1,19 @@
+{% include 'partials/navbar.html' %}
+<div class="container mt-4">
+  <h4>Gestione Utenti</h4>
+  <table class="table" id="userTable">
+    <thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Telefono</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+(async () => {
+  const users = await API.users.getAll();
+  const tbody = document.querySelector('#userTable tbody');
+  users.forEach(u => {
+    tbody.innerHTML += `<tr><td>${u.id}</td><td>${u.name} ${u.surname}</td><td>${u.email}</td><td>${u.phone || '-'}</td></tr>`;
+  });
+})();
+</script>
